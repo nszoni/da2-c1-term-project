@@ -20,8 +20,7 @@ if (!require("pacman")) {
   install.packages("pacman")
 }
 
-pacman::p_load(tidyverse, rvest, data.table,
-               xml2, stringr, logger, rmdformats)
+pacman::p_load(tidyverse, modelsummary, kableExtra, fixest, estimatr, mfx, data.table)
 
 df <- read.table("stack-overflow-developer-survey-2021/survey_results.gz", header = TRUE, sep=",", quote = "\"", fill=TRUE)
 
