@@ -1,0 +1,28 @@
+---
+title: "DA2/C2 - Term Project"
+author: "Son Nam Nguyen"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = F, warning = F)
+```
+
+## Setup
+
+```{r cars}
+
+#setwd("~/Desktop/repos/c2-nyse-term-project")
+
+# Loading packages with pacman
+if (!require("pacman")) {
+  install.packages("pacman")
+}
+
+pacman::p_load(tidyverse, rvest, data.table,
+               xml2, stringr, logger, rmdformats)
+
+df <- read.table("stack-overflow-developer-survey-2021/survey_results.gz", header = TRUE, sep=",", quote = "\"", fill=TRUE)
+
+```
