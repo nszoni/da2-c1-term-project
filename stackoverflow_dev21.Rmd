@@ -40,28 +40,39 @@ ECT.
 
 ```{r dataclean}
 
-df <- df %>% select( score4 , stratio, english, 
-                     income, scratio, exptot, special,
-                     lunch, salary ) %>% drop_na()
+df <- df %>% filter(Country == "United States of America")
 
-target <- c("Employment", "Country", "EdLevel", "YearsCode", "YearsCodePro", "DevType", "OrgSize", "LanguageHaveWorkedWith", "SOVisitFreq", "Age", "Gender", "ConvertedCompYearly")
+target <- c("Employment", "Country", "EdLevel", "YearsCode", "DevType", "OrgSize", "LanguageHaveWorkedWith", "Age", "Gender", "ConvertedCompYearly")
 
 df <- df[ ,which((names(df) %in% target)==TRUE)]
 
 #Data cleaning
-df <- df %>%
+df_clean <- df %>%
       mutate(
         CompSize = ifelse(OrgSize %in% c("Just me - I am a freelancer, sole proprietor, etc.", "10 to 19 employees", "2 to 9 employees"), "small", 
                           ifelse(OrgSize %in% c("20 to 99 employees","500 to 999 employees", "1,000 to 4,999 employees"), "medium", 
                                  ifelse(OrgSize %in% c("1,000 to 4,999 employees", "5,000 to 9,999 employees", "10,000 or more employees"), "large", NA))),
         YearsCode = as.numeric(YearsCode),
-        YearsCodePro = as.numeric(YearsCodePro), 
         ConvertedCompYearly = as.numeric(ConvertedCompYearly),
         Python = c(0, 1)[1+grepl("Python", as.character(LanguageHaveWorkedWith))],
         SQL = c(0, 1)[1+grepl("SQL", as.character(LanguageHaveWorkedWith))],
         R = c(0, 1)[1+grepl("R", as.character(LanguageHaveWorkedWith))],
         Julia = c(0, 1)[1+grepl("Julia", as.character(LanguageHaveWorkedWith))],
+        Scala = c(0, 1)[1+grepl("Scala", as.character(LanguageHaveWorkedWith))],
+        Java = c(0, 1)[1+grepl("Java", as.character(LanguageHaveWorkedWith))],
+        Field = as.factor(ifelse(grepl("Dev", DevType), "Dev", 
+                       ifelse(grepl("Data", DevType, ignore.case=TRUE), "Data", 
+                              ifelse(grepl("Manager|Executive", DevType, ignore.case=TRUE), "Manager", 
+                                     ifelse(grepl("site|admin", DevType, ignore.case=TRUE), "Sysadmin", "Other"))))),
+        Gender = as.factor(ifelse(grepl("Man", Gender, ignore.case=TRUE), "Man", ifelse(grepl("Women", Gender, ignore.case=TRUE), "Women", ifelse(grepl("Non-binary", Gender, ignore.case=TRUE), "Non-binary", NA)))),
+        Employment = as.factor(Employment),
+        Country = as.factor(Country),
+        EdLevel = as.factor(EdLevel),
+        Age = as.factor(Age),
+        ConvertedCompYearly = as.numeric(ConvertedCompYearly)
         )
+
+df_clean[df_clean == ""|df_clean == "Prefer not to say"|df_clean == "I prefer not to say"] <- NA
 
 ```
 
