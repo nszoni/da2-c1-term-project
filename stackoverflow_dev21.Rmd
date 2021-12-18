@@ -20,7 +20,7 @@ if (!require("pacman")) {
   install.packages("pacman")
 }
 
-pacman::p_load(tidyverse, modelsummary, kableExtra, fixest, estimatr, mfx, data.table)
+pacman::p_load(tidyverse, modelsummary, kableExtra, fixest, estimatr, mfx, data.table, janitor, corrplot)
 
 df <- read.table("stack-overflow-developer-survey-2021/survey_results.gz", header = TRUE, sep=",", quote = "\"", fill=TRUE)
 
@@ -42,7 +42,7 @@ ECT.
 
 df <- df %>% filter(Country == "United States of America")
 
-target <- c("Employment", "Country", "EdLevel", "YearsCode", "DevType", "OrgSize", "LanguageHaveWorkedWith", "Age", "Gender", "ConvertedCompYearly")
+target <- c("Employment", "EdLevel", "YearsCode", "DevType", "OrgSize", "LanguageHaveWorkedWith", "Age", "Gender", "ConvertedCompYearly", "US_State")
 
 df <- df[ ,which((names(df) %in% target)==TRUE)]
 
@@ -53,7 +53,8 @@ df_clean <- df %>%
                           ifelse(OrgSize %in% c("20 to 99 employees","500 to 999 employees", "1,000 to 4,999 employees"), "medium", 
                                  ifelse(OrgSize %in% c("1,000 to 4,999 employees", "5,000 to 9,999 employees", "10,000 or more employees"), "large", NA))),
         YearsCode = as.numeric(YearsCode),
-        ConvertedCompYearly = as.numeric(ConvertedCompYearly),
+        ConvertedCompYearlyK = as.numeric(ConvertedCompYearly)/1000,
+        lConvertedCompYearlyK = log(ConvertedCompYearlyK),
         Python = c(0, 1)[1+grepl("Python", as.character(LanguageHaveWorkedWith))],
         SQL = c(0, 1)[1+grepl("SQL", as.character(LanguageHaveWorkedWith))],
         R = c(0, 1)[1+grepl("R", as.character(LanguageHaveWorkedWith))],
@@ -64,15 +65,15 @@ df_clean <- df %>%
                        ifelse(grepl("Data", DevType, ignore.case=TRUE), "Data", 
                               ifelse(grepl("Manager|Executive", DevType, ignore.case=TRUE), "Manager", 
                                      ifelse(grepl("site|admin", DevType, ignore.case=TRUE), "Sysadmin", "Other"))))),
-        Gender = as.factor(ifelse(grepl("Man", Gender, ignore.case=TRUE), "Man", ifelse(grepl("Women", Gender, ignore.case=TRUE), "Women", ifelse(grepl("Non-binary", Gender, ignore.case=TRUE), "Non-binary", NA)))),
+        Gender = as.factor(ifelse(grepl("Man", Gender, ignore.case=F), "Man", ifelse(grepl("Woman", Gender, ignore.case=TRUE), "Women", ifelse(grepl("Non-binary", Gender, ignore.case=TRUE), "Non-binary", NA)))),
         Employment = as.factor(Employment),
-        Country = as.factor(Country),
         EdLevel = as.factor(EdLevel),
         Age = as.factor(Age),
-        ConvertedCompYearly = as.numeric(ConvertedCompYearly)
+        ConvertedCompYearly = as.numeric(ConvertedCompYearly),
+        US_State = as.factor(US_State)
         )
 
-df_clean[df_clean == ""|df_clean == "Prefer not to say"|df_clean == "I prefer not to say"] <- NA
+df_clean[df_clean == "Prefer not to say"] <- NA
 
 ```
 
@@ -81,19 +82,51 @@ df_clean[df_clean == ""|df_clean == "Prefer not to say"|df_clean == "I prefer no
 
 P95 <- function(x){quantile(x,0.95,na.rm=T)}
 P05 <- function(x){quantile(x,0.05,na.rm=T)}
-datasummary( (`Overall Grade` = score4 ) + 
-             (`Student to teacher ratio` = stratio ) + 
-             (`Percent of english learner` = english ) + 
-             (`Income per capita` = income) + 
-             (`Student to computer ratio` = scratio) + 
-             (`Total Expenditure ($)` = exptot) + 
-             (`Special education students (%)` = special )+
-             (`Percent qualifying for reduced-price lunch` = lunch ) +
-             (`Average teacher hourly wage ($)` = salary ) ~
+datasummary( (`Years of coding` = YearsCode ) + 
+             (`Yearly Compensation (K$)` = ConvertedCompYearlyK ) ~
              Mean + Median + SD + Min + Max + P05 + P95 , 
-             data = df ,
+             data = df_clean,
              title = 'Descriptive statistics') %>% 
+  
       kable_styling(latex_options = c("HOLD_position","scale_down"))
+```
+
+```{r}
+
+df_clean %>%
+  tabyl(Python, R) %>% 
+  adorn_totals(c("row", "col")) %>%
+  adorn_percentages("row") %>% 
+  adorn_pct_formatting(rounding = "half up", digits = 0) %>%
+  adorn_ns() %>%
+  adorn_title("combined") %>%
+  knitr::kable()
+
+```
+
+```{r}
+
+df_clean %>%
+  tabyl(Python, SQL) %>% 
+  adorn_totals(c("row", "col")) %>%
+  adorn_percentages("row") %>% 
+  adorn_pct_formatting(rounding = "half up", digits = 0) %>%
+  adorn_ns() %>%
+  adorn_title("combined") %>%
+  knitr::kable()
+
+```
+
+```{r}
+
+df_clean %>%
+  tabyl(Age, Gender) %>% 
+  adorn_totals(c("row", "col")) %>%
+  adorn_percentages("row") %>% 
+  adorn_pct_formatting(rounding = "half up", digits = 0) %>%
+  adorn_ns() %>%
+  adorn_title("combined") %>%
+  knitr::kable()
 
 ```
 
@@ -102,6 +135,13 @@ DESCRIPTION OF THE SUMMARY STATS: WHAT CAN WE LEARN FROM THEM?
 
 ```{r distributions}
 
+ggplot(data = df_clean) + 
+  geom_histogram(aes(YearsCode))
+
+#log-normal dirstribution with a log mean of 5K dollars
+ggplot(data = df_clean) + 
+  geom_histogram(aes(lConvertedCompYearlyK), bins = 50) 
+
 ```
 
 DESCRIPTION OF THE FIGURE. WHAT DOES IT TELS US?
@@ -109,6 +149,12 @@ DESCRIPTION OF THE FIGURE. WHAT DOES IT TELS US?
 Pattern of association
 
 ```{r scatter}
+
+ggplot(data = df_clean, aes(YearsCode, lConvertedCompYearlyK)) +
+  geom_point() +
+  geom_smooth(method = "loess")
+
+
 
 ```
 
@@ -119,6 +165,53 @@ Short description on the other variables: 2-10 sentence depends on the amount of
 ## Model
 
 ```{r models}
+
+#relevels
+df_clean <- df_clean %>% mutate(
+  Field = relevel(Field, ref="Dev"),
+  EdLevel = relevel(EdLevel, ref="Bachelor’s degree (B.A., B.S., B.Eng., etc.)"),
+  Age = relevel(Age, ref="18-24 years old")  
+)
+
+reg1 <- feols(lConvertedCompYearlyK ~ Python + SQL + R + Julia + Scala + Java, data=df_clean, vcov = "hetero")
+
+reg2 <- feols(lConvertedCompYearlyK ~ Python + SQL + R + Julia + Scala + Java + Field + CompSize, data = df_clean, vcov = "hetero")
+
+reg3 <- feols(lConvertedCompYearlyK ~ Python + SQL + R + Julia + Scala + Java + Field + CompSize + EdLevel + Gender + Age, data = df_clean, vcov = "hetero")
+
+
+msummary(list("Baseline" = reg1, "Company" = reg2, "Demographics" = reg3),
+         fmt="%.2f",
+         gof_omit = 'DF|Deviance|Log.Lik.|F|R2 Adj.|AIC|BIC|R2 Within|R2 Pseudo',
+         stars=c('*' = .05, '**' = .01),
+         estimate = "{estimate} ({std.error}){stars}",
+         statistic = NULL,
+         coef_rename = c("FieldData" = "Data",
+                         "FieldManager" = "Manager",
+                         "FieldOther" = "Other Field",
+                         "FieldSysadmin" = "SysAdmin",
+                         "CompSizemedium" = "Medium Company",
+                         "CompSizesmall" = "Small Company",
+                         "EdLevelAssociate degree (A.A., A.S., etc.)" = "Associate degree",
+                         "EdLevelMaster’s degree (M.A., M.S., M.Eng., MBA, etc.)" = "Master's degree",
+                         "EdLevelOther doctoral degree (Ph.D., Ed.D., etc.)" = "Doctoral degree",
+                         "EdLevelPrimary/elementary school" = "Elementary School",
+                         "EdLevelProfessional degree (JD, MD, etc.)" = "Professional degree",
+                         "EdLevelSecondary school (e.g. American high school, German Realschule or Gymnasium, etc.)" = "Secondar School",
+                         "EdLevelSome college/university study without earning a degree" = "University w/out degree",
+                         "EdLevelSomething else" = "Other Education Level",
+                         "GenderNon-binary" = "Non-binary",
+                         "GenderWomen" = "Women",
+                         "Age25-34 years old" = "25-34",
+                         "Age35-44 years old" = "35-44",
+                         "Age45-54 years old" = "45-54",
+                         "Age55-64 years old" = "55-64",
+                         "Age65 years or older" = "65+",
+                         "AgeUnder 18 years old" = "18-"
+                         ),
+         title = "Coding Language Gap in the US") %>% 
+        column_spec(1:3, width = "7em") %>% 
+        kable_classic(full_width = F, position = "center" )
 
 ```
 
