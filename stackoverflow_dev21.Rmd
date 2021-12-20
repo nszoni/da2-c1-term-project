@@ -7,84 +7,85 @@ output:
   pdf_document:
     fig_caption: yes
     latex_engine: xelatex
-    toc: true
+fontsize: 9pt
+geometry: margin=1.8cm
+header-includes: |
+  \usepackage{titling}
+  \setlength{\droptitle}{-5em}
 ---
 
 ```{r chunks, echo=F}
-knitr::opts_chunk$set(echo = F, message = F, warning = F, fig.asp = 0.5, fig.width = 7, out.width = "90%" )
+#setting chunk options
+knitr::opts_chunk$set(echo = F, message = F, warning = F, fig.align="center", fig.width = 6, fig.height = 4)
 ```
 
-## Setup
-
 ```{r setup}
-
-#setwd("~/Desktop/repos/c2-nyse-term-project")
 
 # Loading packages with pacman
 if (!require("pacman")) {
   install.packages("pacman")
 }
 
-pacman::p_load(tidyverse, modelsummary, kableExtra, fixest, estimatr, mfx, data.table, janitor, stringr, Hmisc)
+pacman::p_load(tidyverse, modelsummary, kableExtra, fixest, estimatr, data.table, janitor, stringr)
 
-df <- read.table("stack-overflow-developer-survey-2021/survey_results.gz", header = TRUE, sep=",", quote = "\"", fill=TRUE)
+#Reading csv from github repo
+df <- read.csv("https://raw.githubusercontent.com/nszoni/da2-c1-term-project/main/stack-overflow-developer-survey-2021/survey_results.csv", header=TRUE, sep = ",", quote = "\"", fill = T, stringsAsFactors = F)
 
 ```
+
 ## Introduction
 
-In this use-case, I will perform a throughout analysis on the programming language compensation gap among full-time developers in the United States. My aim is to show the expected differences in compensation depending on one knowing Python, SQL, R, etc. controlled with employment, education and demographics confounders.
+In this project, I will present my findings on the programming language compensation disparity among full-time developers in the United States. My aim is to show the expected differences in compensation depending on one knowing Python, SQL, Java, etc. controlled with employment, experience, education and demographics confounders.
 
 ## Source Description
 
-For the analysis, I have used the [Stackoverflow Developer Survey](https://insights.stackoverflow.com/survey/2021) conducted in 2021. This report is based on a survey of 83,439 software developers from 181 countries around the world. Respondents were recruited primarily through channels owned by Stack Overflow. The top sources of respondents were onsite messaging, blog posts, email lists, banner ads, and social media posts.
+For the analysis, I have used the [Stackoverflow Developer Survey](https://insights.stackoverflow.com/survey/2021) conducted in 2021. This report is based on a survey of **83,439 software developers from 181 countries around the world**. Respondents were recruited primarily through channels owned by Stack Overflow. The top sources of respondents were onsite messaging, blog posts, email lists, banner ads, and social media posts.
 
 ## Data Quality
 
-I consider the sample to be representative for the community. First, because it reaches out to potential respondent though an extensive number of channels. Yes, these mediums all assume that developers all have access to network connection, have their email, etc., but it very rare that people in the IT sector don't have those. Addtionally, observations and the diversity all across the globe should well support my subsequent arguments.
+I consider the sample to be representative for the community. First, because it reaches out to potential respondent though an extensive number of channels. Yes, these mediums all assume that developers all have access to network connection, have their email, and so on, but it extremely rare that people in the IT sector don't have those.
 
-Looking back to surveys from previous years, the company made multiple modifications over the years to minimize the measurement errors in the variables. That is, instead of letting the respondents give arbitrary answers for questions like age, they categorized the variable into bins to avoid age discrepancies, at a cost of hindering the granularity of age coefficients. 
+Looking back at earlier polls, the organization has made a number of changes throughout the years to reduce measurement errors in the variables. Instead of allowing respondents to offer arbitrary answers to questions like age, they grouped the variable into bins to eliminate age inconsistencies, at the cost of limiting the resolution with which age coefficients could be estimated. 
 
-A possible window for error could be recognized in the reported level of compensation. People who believe that they are underpaid are less likely to report their wage, while those who are paid higher than average are more than happy to show off. Also, I need to identify reported compensations which are not plausible given the employment.
+Another possible window for error could be recognized in the reported level of compensation. People **who believe that they are underpaid are less inclined to reveir their compensation, while those who are paid higher than average are eager to do so**. Also, I need to identify reported compensations which are not plausible given the employment, in other words, drop extreme values which are beyond a certain reliability treshhold.
 
-The dataset lacks a variable which lets me determine the coding years spent with the programming languages. Therefore, it is unknown what share of their professional career was spent on working with the listed languages someone has worked with so far. Therefore, I can't estimate the coefficients for what should we expect compensation-wise when working an additional year with a language.
+Like many others, the dataset lacks a variable which lets me determine the coding years spent with the programming languages. Therefore, it is unknown what share of their professional career was spent on working with the listed languages someone has worked with so far. Simply put, I can't estimate the coefficients for what should we expect in terms of renumeration when working an additional year with a language.
 
-Lastly, job titles have always been very difficult to grasp. Titles often does not reflect what a professional usually does in a day-to-day workday. Many job titles are not segregated enough from each other, hence, they tend to blend together. In other words there are rarely cases when the sets of job responsibilities are mutually exclusive. 
+Finally, **job titles/fields have always been a challenge to comprehend**. Titles frequently do not reflect what a professional does on a daily basis. Many job titles are not sufficiently differentiated from one another, and as a result, they tend to blur together (data people often call themselves developers). To put it another way, the sets of job tasks are rarely mutually exclusive to each other.
 
 ## Variables
 
-Let us shortly clarify variables which are not that trivial what they present. Each variable represent an entry in the survey which you can find [here](https://github.com/nszoni/da2-c1-term-project/blob/main/stack-overflow-developer-survey-2021/so_survey_2021.pdf). 
+Let me shortly clarify variables which are not that trivial what they present. Each variable represent an entry in the survey which you can find [here](https://github.com/nszoni/da2-c1-term-project/blob/main/stack-overflow-developer-survey-2021/so_survey_2021.pdf). 
 
-Salaries are converted from user currencies to USD using the exchange rate on 2021-06-16, and also converted to annual salaries assuming 12 working months and 50 working weeks.
+**Salaries are converted from user currencies to USD using the exchange rate on 2021-06-16**, and also converted to annual salaries assuming 12 working months and 50 working weeks. As a best practice, I will use the log of converted yearly compensations in thousand USD as my LHS variable.
 
-I will use the log of converted yearly compensations in thousand USD as my LHS variable.
-
-Control variables which I will focus on are (1) Field of employment, (2) Size of organization, (3) Level of education (4) Gender, (5) Age, (6) number of known programming languages. I have also restricted the number of languages under scope to Python, SQL and R.
+Control variables which I plan to focus on are **(1) Field of employment, (2) Size of organization, (3) Level of education (4) Gender, (5) Age, (6) Ethnicity (7) Number of known programming languages, (8) Years of coding**. I have also restricted the number of languages under scope to the top five languages according to the survey which are **Javascript, HTML/CSS, Python, Java, SQL**.
 
 ## Data Munging
 
-To clean the raw data, I performed the following transformations:
+**To clean the raw data, I performed the following transformations:**
 
 1. Dropped of columns not needed in the further analysis
-2. Regroup `Organization Size`, `DevType`, and `Gender` variables to decrease the number of factor levels.
-3. Cast the variables to their appropriate class
-4. Flip empty fields, "Prefer not to say" and its synonyms to NAs
+2. Regroup **Organization Size**, **DevType**, **Ethnicity** and **Gender** variables to decrease the number of factor levels.
+3. Cast the variables to their appropriate class structure.
+4. Flip empty strings, "Prefer not to say" and its synonyms to NAs
+5. Filter sample to observations working full-time in the United States
 
-Calculate new dimensions for:
+**Calculate new dimensions for:**
 
-1. Binary flags for working in coding languages (Python, R, SQL)
+1. Binary flags for working in coding languages (JavaScript, HTML/CSS, Python, Java, SQL)
 2. Count of coding languages an individual has worked with
 3. Compensation represented in thousand USDs and its log form
 
 
 ```{r dataclean}
 
-df_clean <- df %>% filter(Country == "United States of America" & Employment == "Employed full-time")
+#columns to work with
+target <- c("EdLevel", "Country", "YearsCode", "DevType", "OrgSize", "LanguageHaveWorkedWith", "Age", "Gender", "ConvertedCompYearly", "US_State", "Employment", "Ethnicity")
 
-target <- c("EdLevel", "YearsCode", "DevType", "OrgSize", "LanguageHaveWorkedWith", "Age", "Gender", "ConvertedCompYearly", "US_State")
+df_clean <- df[ ,which((names(df) %in% target)==TRUE)]
 
-df_clean <- df_clean[ ,which((names(df_clean) %in% target)==TRUE)]
-
-#Data cleaning
+#Data cleaning (casting, dimensionality aggregation, calculating flags for programming languages)
 df_clean <- df_clean %>%
       mutate(
         CompSize = ifelse(OrgSize %in% c("Just me - I am a freelancer, sole proprietor, etc.", "10 to 19 employees", "2 to 9 employees"), "small", 
@@ -95,9 +96,8 @@ df_clean <- df_clean %>%
         lConvertedCompYearlyK = log(ConvertedCompYearlyK),
         Python = c(0, 1)[1+grepl("Python", as.character(LanguageHaveWorkedWith))],
         SQL = c(0, 1)[1+grepl("SQL", as.character(LanguageHaveWorkedWith))],
-        R = c(0, 1)[1+grepl("R", as.character(LanguageHaveWorkedWith))],
-        Julia = c(0, 1)[1+grepl("Julia", as.character(LanguageHaveWorkedWith))],
-        Scala = c(0, 1)[1+grepl("Scala", as.character(LanguageHaveWorkedWith))],
+        JavaScript = c(0, 1)[1+grepl("JavaScript", as.character(LanguageHaveWorkedWith))],
+        HTML_CSS = c(0, 1)[1+grepl("HTML/CSS", as.character(LanguageHaveWorkedWith))],
         Java = c(0, 1)[1+grepl("Java", as.character(LanguageHaveWorkedWith))],
         Field = as.factor(ifelse(grepl("Dev", DevType), "Dev", 
                        ifelse(grepl("Data", DevType, ignore.case=TRUE), "Data", 
@@ -108,58 +108,165 @@ df_clean <- df_clean %>%
         Age = as.factor(Age),
         ConvertedCompYearly = as.numeric(ConvertedCompYearly),
         US_State = as.factor(US_State),
-        LanguageCount = as.integer(str_count(LanguageHaveWorkedWith, ";"))+1
+        LanguageCount = as.integer(str_count(LanguageHaveWorkedWith, ";"))+1,
+        Employment = as.factor(Employment),
+        Race = as.factor(ifelse(grepl("White", Ethnicity, ignore.case=TRUE), "White", "Colored"))
         )
 
+#clean unknwon data
 df_clean[df_clean == "Prefer not to say"] <- NA
+
+#narrow down scope to full-time US developers
+df_us <- df_clean %>% filter(Country == "United States of America" & Employment == "Employed full-time")
 
 ```
 
 ## Descriptive Statistics
 
-The below descriptive table shows the key statistics of the numeric variables under the discussion. The distribution of Years of coding is right-skewed with a mean of roughly 17 years, while the dispersion is relatively high (measured at SD = 10.82). The starters have 1 years of coding, while veterans with the most experience reported 50 years of coding. 
+The below descriptive table shows the key statistics of the numeric variables under the discussion. The distribution of **Years of coding is right-skewed with a mean of roughly 17 years**, while the dispersion is relatively high (measured at SD = 10.82). Starters have 1 years of coding, while veterans with the most experience reported 50 years of coding so far. 
 
-Regarding yearly compensation, US developers have an aggressively lognormal distribution in salaries, where the mean is 265.8 thousand USD, while the median is 130 thousand USD. 95% of the sample receives a yearly compensation lower than 500 thousand USD, and 5% higher than that maxing out at a whooping 22 billion USD a year. A minimum of 0 thousand USD wage means that there are observations having a single digit yearly compensation. According to [Minimum-wage.org](https://www.minimum-wage.org/federal), the federal minimum yearly minimum wage in 2021 was $15,080.00/year. Using that threshold, I've dropped rows with a yearly compensation below the minimum wage.
+Regarding yearly compensation, US developers follow an aggressively lognormal distribution in salaries, where the **mean is 265.4 thousand USD**, while the median is 125 thousand USD. 95% of the sample are paif less than 450 thousand USD, and **5% higher than that maxing out at a whooping 22 billion USD a year**. A minimum of 0 thousand USD wage means that there are observations having a single digit yearly compensation. According to [Minimum-wage.org](https://www.minimum-wage.org/federal), **the federal minimum yearly minimum wage in 2021 was $15,080.00/year**. Using that criterion, I've dropped rows with a yearly compensation below the minimum wage.
 
-At last, a developer working in the US have experience in working with 4 programming languages in average. The distribution of the variable is about bell-shaped, with a standard-deviation of 2.76 and the maximum of 19 languages. Looking at the percentiles, 95% of the sample knows 9 or less programming languages, so two digit amounts are rare in the developer community.
+At last, **a developer working full-time in the US have experience in working with 4 programming languages in average**. The distribution of the variable is about bell-shaped, with a standard-deviation of 2.9. According to the percentiles, 95% of the sample understands 11 or fewer programming languages, indicating that most two-digit numbers are uncommon in the developer community. **Some of the most experienced developers can code even in total of 38 languages**.
 
 ```{r summary}
 
+#define percentles and contruct summary table for numerics
 P95 <- function(x){quantile(x,0.95,na.rm=T)}
 P05 <- function(x){quantile(x,0.05,na.rm=T)}
 datasummary( (`Years of coding` = YearsCode ) + 
              (`Yearly Compensation (K$)` = ConvertedCompYearlyK ) +
              (`Number of Languages Known` = LanguageCount) ~
              Mean + Median + SD + Min + Max + P05 + P95, 
-             data = df_clean,
+             data = df_us,
              title = 'Descriptive statistics') %>% 
-      kable_styling(latex_options = c("HOLD_position","scale_down"))
+      kable_styling(latex_options = c("hold_position","striped"))
 
-df_clean <- df_clean[!(df_clean$ConvertedCompYearly < 15000),]
+#filter out those who are earning below the federal minima wage
+df_us <- df_us %>% filter(!(df_us$ConvertedCompYearly < 15000))
 ```
-Next, to get a picture about the share coverage of the explanatory variables in our sample, We can visualize the joint distribution of Python and R in a tabular form. The table below suggests that around 36% of the full sample haven't worked with either of these languages. Among those who either worked with Python or not before, the share of R users are the same (30%). If we look at absolutes, the share of observations knowing Python is nearly double the share of those in R. Here we can already see a slight preference in R, and that oftentimes they go together in certain fields like Data Science. The question which I'm also after is that is it worth to study R in a perspective of compensation?
 
-```{r}
+After clearing, filtering and dropping implausible observations in the sample, I have explored once again the distribution of the years in coding, number of languages a developer have worked with, and the distribution of programming language usage in the community. 
 
-df_clean %>%
-  tabyl(Python, R, show_na = T) %>% 
-  adorn_totals(c("row", "col")) %>%
-  adorn_percentages("row") %>% 
-  adorn_pct_formatting(rounding = "half up", digits = 0) %>%
-  adorn_ns() %>%
-  adorn_title("combined") %>%
-  kable() %>% 
-  kable_styling(latex_options = c("HOLD_position","scale_down"))
+The graph in the [***Appendix***](#yearscoding) shows that the histogram of years of coding is still relatively right skewed, with a lower mean of 16.78 years.
+
+Then on, I have illustrated the distribution of number of coding languages known among developers in each employment field (see [***Appendix***](#nolanguages)). **Developers, Managers and SysAdmins are having the highest average language known (with the larger IQRs), wheres people working in data has the lowest number of average languages they have worked with (low IQR)**. It is not surprising at all, considering that oftentimes managers are ex-developers, developers are more likely to work on both the front-end and back-end, while the toolkit of data people are usually reduced to the set of Python, R and SQL. Additionally, the kernel density graph of all within field distributions can be characterized by a **left-peaked shape**.
+
+**People still use Java and JavaSript the most** (more than 20% of the sample), as these languages have been in the discussion fo decades and people have not yet fully transitioned to the now-booming ones like Python (sitting at roughly 16%). **SQL is also up there close to the leaders of the chart**, and personally, **I expect the SQL to resurface more among developers** because it is in high demand, especially in Data Engineering. The reason for that, new product following the Modern Data Stack mindset have to be SQL agnostic and thrive for supplying the community with a pipeline which can be managed by purely SQL (see [***Appendix***](#toplanguages)).
+
+Before jumping into the set of models I have estimated, behind the scenes, I checked how numerical variables are correlated, and whether we have to address the possibility of multicollinearity (see [***Appendix***](#correlation)). Fortunately, **none of the pairs in my matrix had a correlation coefficient higher than 0.22**, meaning that we can reject the hypothesis that these are linear combinations of each other.
+
+## Model
+
+To present my estimated models, I chose to use an additive logic approach, in which I first estimated the unconditonal link between compensation and (the five) programming languages, then afterwards **added controlling factors relating to employment and demographics**. Variables are chosen on the basis that they are the key compensation mechanism variables in most studies. I could have included experience with a wide range of tools that were indicated in the survey and might be utilized to gain an advantage on the job market, but I refused to do so because it would have thrown off my coefficients/observations balance. The argument about the number of variables vs. the number of observations also relates to my decision not to estimate polynomial and interaction forms.
+
+### Unconditional Estimates
+
+The baseline model indicates that all of the languages except Python and JavaScript has a statistically significant impact on compensation levels, at 5%. **Those who know Java tend to have 8% higher yearly compensation in the US. Studying front-end skills like JavaScript and HTML/CSS are on average associated with 6 and 11% lower salaries than those who are not doing it, respectively, holding other covariates constant**. People knowing SQL also tend to earn less by 6% on average compared to those who are not familiar with it. The goodness-of-fit is relatively low with only 1% of the variance in y is explained by the variance of explanatory variables.
+
+### Second-best model
+
+Adding employment-specific variables like company size, and working department, we can observe that most of the explanatory variables have lost their significance on the 5% level, except HTML/CSS. The magnitude of coefficients all dropped or stayed the same for the regressors, however, the $R^2$ has also improved suggesting that included managed to cover a part of the variance in yearly compensation.
+
+### First-best model
+
+Estimating my fully extended model where I included demographic control variables, the statistical significance of the explanatory variables changes once again. **Python now is significant and implies a 5% higher yearly compensation for those who have worked with it, all else being equal**. The coefficients of SQL, JavaScript and HTML/CSS are still associated with a lower compensation. **By working with SQL, compensation is expected to be lower on average by 9%, while lower by 11% in the case of HTML/CSS, assuming that other covariates are constant**. The $R^2$ of roughly 0.91 suggests that there are still a lot of unexplained variances in y, hence, the continuation of this project should incorporate other unknown variables.
+
+*Check full regression table in the [***Appendix***](#fulltable)*
+
+```{r models}
+
+#relevel factors (chose most observations as base to reduce SE)
+df_us <- df_us %>% mutate(
+  Field = relevel(Field, ref="Dev"),
+  EdLevel = relevel(EdLevel, ref="Bachelor’s degree (B.A., B.S., B.Eng., etc.)"),
+  Age = relevel(Age, ref="18-24 years old"),
+  Race = relevel(Race, ref="White") 
+)
+
+#unconditional
+reg1 <- feols(lConvertedCompYearlyK ~ Python + SQL + Java + JavaScript + HTML_CSS, data=df_us, vcov = "hetero")
+
+#adding employment covariates
+reg2 <- feols(lConvertedCompYearlyK ~ Python + SQL + Java + JavaScript + HTML_CSS + Field + CompSize, data = df_us, vcov = "hetero")
+
+#adding demographics
+reg3 <- feols(lConvertedCompYearlyK ~ Python + SQL + Java + JavaScript + HTML_CSS + Field + CompSize + EdLevel + Gender + Age + Race + YearsCode, data = df_us, vcov = "hetero")
+
+#present results
+msummary(list("Baseline" = reg1, "Employment" = reg2, "Demographics" = reg3),
+         fmt="%.2f",
+         gof_omit = 'DF|Deviance|Log.Lik.|F|R2 Adj.|AIC|BIC|R2 Within|R2 Pseudo',
+         stars=c('*' = .05, '**' = .01),
+         estimate = "{estimate} ({std.error}){stars}",
+         statistic = NULL,
+         coef_omit = c("Comp|EdLevel|Field|Gender|Age|YearsCode|Race"),
+         title = "Coding Language Compensation Gap in the US",
+         notes = c("Demographics: Adds (1) Age, (2) Gender, (3) Level of Education, (4) Years Coding, (5) White dummy", "Employment: Adds (1) Working Field, (2) Company Size", "Baseline: Estimates unconditionally")) %>% 
+        column_spec(1:3, width = "9em") %>% 
+        kable_classic(full_width = F, position = "center" , latex_options = "hold_position")
 
 ```
+
+## External Validity
+
+To check the external validity of my best model which incorporates variation in employment and demographics. I have created additional subset of dataframes for the other four countries having the most observation in the data (UK and Ireland, France, India, and Germany)
+
+Coefficents do not appear to be steady at all, which could be attributable to regional variances in skill demand. For example, **knowing Python and Java is substantially more favorable in India than in Germany (the former is related with 21% greater remuneration) as compared to the coefficients in the United States**. While Python is higher valued in India, SQL knowledge is considered a no-go, with an average pay cut of 11%. Other notable discrepancies can be found in the projected coeffficients of **France, where workers with Pyhton and JavaScript experience are penalized by 9 percent and 26 percent lower compensation, respectively, whereas Java developers are rewarded with a 22 percent higher salary**.
+
+```{r robust}
+
+coeff_intercept <- c()
+coeff_python <- c()
+coeff_sql <- c()
+coeff_java <- c()
+coeff_javascript <- c()
+coeff_html_css <- c()
+i=0
+
+for (c in unique(df_clean[df_clean$Country=="India" | df_clean$Country=="Germany" | df_clean$Country=="United Kingdom of Great Britain and Northern Ireland" | df_clean$Country=="France", ]$Country)) {
+  i=i+1
+  reg <- feols(lConvertedCompYearlyK ~ Python + SQL + Java + JavaScript + HTML_CSS + Field + CompSize + EdLevel + Gender + Age + YearsCode + Race, data = df_clean[df_clean$Country==c, ], vcov = "hetero")
+  coeff_intercept[c] <- reg$coefficients[[1]]
+  coeff_python[c] <- reg$coefficients[[2]]
+  coeff_sql[c] <- reg$coefficients[[3]]
+  coeff_java[c] <- reg$coefficients[[4]]
+  coeff_javascript[c] <- reg$coefficients[[5]]
+  coeff_html_css[c] <- reg$coefficients[[6]]
+}
+
+ext <- data.frame(coeff_intercept, coeff_python, coeff_sql, coeff_java, coeff_javascript, coeff_html_css) 
+rownames(ext) <- c("UK and Ireland","India","Germany","France")
+
+ext %>% kbl(digits=2, caption = "External Validity Coefficients", booktabs = T,
+        col.names = c("Constant",
+                      "Python",
+                      "SQL",
+                      "Java",
+                      "JavaScript",
+                      "HTML/CSS"))%>% 
+  kable_styling(latex_options = c("hold_position","striped"))
+
+```
+
+## Conclusion
+
+To sum up,  There isn't a good language to concentrate on if we want greater pay. It undoubtedly depends on the country's job market, and preferences for specific languages shift regularly. Python has a lot of potential, but it hasn't been widely adopted compared to languages that are on the slide in terms of popularity. It was also surprising to find SQL in the top ten because it is a very basic language but that’s what makes it easier for a data team to migrate on new technologies.
+
+I've learned a lot about the present work market, and I believe I've addressed many of the major stumbling blocks in order to achieve my goal. In terms of constraints, I aggregated levels of factor variables to simplify my model, but I paid the price by being unable to see those coefficients at a finer level. There is still a lot of unexplained variation in compensation, which can be linked to the company's performance, seniority, the effort he or she puts in at work, and other types of compensation (e.g. shares, cafeteria, etc.). Beyond that, there are factors such as family background and social skills that can only help to reduce the variance. I'm looking forward to delving deeper into this link and using other sources to supplement or proxy the latent variables provided.
+
+## Appendix {#appendix} 
+
+### Distribution in years of coding {#yearscoding}
 
 ```{r distributions}
 
-ggplot(aes(YearsCode), data = df_clean) + 
+#distribution of years in coding
+ggplot(aes(YearsCode), data = df_us) + 
   geom_histogram(colour="firebrick4", fill="firebrick1", bins = 20) +
   geom_vline(aes(xintercept=mean(YearsCode, na.rm=T)),
            color="firebrick3", linetype="dashed", size=1, alpha = 0.5) +
-  geom_text(aes(mean(YearsCode, na.rm=T), 700, label=paste0("Mean: ",round(mean(YearsCode, na.rm=T), 2))), hjust = -0.3) +
+  geom_text(aes(mean(YearsCode, na.rm=T), 900, label=paste0("Mean: ",round(mean(YearsCode, na.rm=T), 2))), hjust = -0.3) +
   labs(title = 'Years of Coding among Full-time Developers in the US',
        caption = 'Source: Stackoverflow Developer Survey 2021',
        x = 'Years of Coding',
@@ -168,23 +275,12 @@ ggplot(aes(YearsCode), data = df_clean) +
 
 ```
 
-```{r}
-
-#log-normal dirstribution with a log mean of 5K dollars
-ggplot(data = df_clean) + 
-  geom_histogram(aes(lConvertedCompYearlyK), colour="firebrick4", fill="firebrick1", bins = 50) +
-  labs(title = 'Log Compensation Level',
-       subtitle = 'Log transformation yields bell-shaped curve',
-       caption = 'Source: Stackoverflow Developer Survey 2021',
-       x = 'Log Yearly Compensation (K$)',
-       y = 'Frequency') +
-  theme_bw()
-
-```
+### Number of languages known {#nolanguages}
 
 ```{r}
 
-df_clean %>% filter(!is.na(Field)) %>% 
+#field distribution of number of known languages
+df_us %>% filter(!is.na(Field)) %>% 
   ggplot(aes(x=Field, y=LanguageCount, fill=Field)) +
     geom_violin(width=1, alpha=0.5)+
     geom_boxplot(width=0.3) +
@@ -198,35 +294,40 @@ df_clean %>% filter(!is.na(Field)) %>%
 
 ```
 
-### Pattern of association
+### Most popular languages distribution {#poplanguages}
 
-```{r scatter}
+```{r}
 
-df_clean[,c("YearsCode", "ConvertedCompYearlyK", "LanguageCount")] %>% cor(use="complete.obs") %>% 
-  kable(digits=3) %>% 
-  kable_styling(latex_options = c("HOLD_position","scale_down"))
+#share of top languages in teh community
+df_us %>% dplyr::select(., Python:Java) %>% pivot_longer(cols = c("Python", "Java", "SQL", "JavaScript", "HTML_CSS")) %>% ggplot() +
+  geom_col(aes(reorder(name, value/sum(value)), value/sum(value)), fill="firebrick3") +
+  labs(title = 'Share of Top Languages among US Developers',
+     caption = 'Source: Stackoverflow Developer Survey 2021',
+     x = '',
+     y = 'Share of Total (%)') +
+  scale_y_continuous(labels=scales::percent) +
+  theme_bw() +
+  coord_flip()
 
 ```
 
-## Model
+### Correlation matrix {#correlation}
 
-```{r models}
+```{r scatter}
 
-#relevels
-df_clean <- df_clean %>% mutate(
-  Field = relevel(Field, ref="Dev"),
-  EdLevel = relevel(EdLevel, ref="Bachelor’s degree (B.A., B.S., B.Eng., etc.)"),
-  Age = relevel(Age, ref="18-24 years old")  
-)
+#checking correlations
+df_us[,c("YearsCode", "ConvertedCompYearlyK", "LanguageCount")] %>% cor(use="complete.obs") %>% 
+  kable(digits=3, caption = "Correlation Matrix", booktabs = T,) %>% 
+  kable_styling(latex_options = c("hold_position","striped"))
 
-reg1 <- feols(lConvertedCompYearlyK ~ Python + SQL + R + Julia + Scala + Java, data=df_clean, vcov = "hetero")
+```
 
-reg2 <- feols(lConvertedCompYearlyK ~ Python + SQL + R + Julia + Scala + Java + Field + CompSize, data = df_clean, vcov = "hetero")
+\pagebreak
+### Full regression table {#fulltable}
 
-reg3 <- feols(lConvertedCompYearlyK ~ Python + SQL + R + Julia + Scala + Java + Field + CompSize + EdLevel + Gender + Age, data = df_clean, vcov = "hetero")
+```{r fulltable}
 
-
-msummary(list("Baseline" = reg1, "Company" = reg2, "Demographics" = reg3),
+msummary(list("Baseline" = reg1, "Employment" = reg2, "Demographics" = reg3),
          fmt="%.2f",
          gof_omit = 'DF|Deviance|Log.Lik.|F|R2 Adj.|AIC|BIC|R2 Within|R2 Pseudo',
          stars=c('*' = .05, '**' = .01),
@@ -243,7 +344,7 @@ msummary(list("Baseline" = reg1, "Company" = reg2, "Demographics" = reg3),
                          "EdLevelOther doctoral degree (Ph.D., Ed.D., etc.)" = "Doctoral degree",
                          "EdLevelPrimary/elementary school" = "Elementary School",
                          "EdLevelProfessional degree (JD, MD, etc.)" = "Professional degree",
-                         "EdLevelSecondary school (e.g. American high school, German Realschule or Gymnasium, etc.)" = "Secondar School",
+                         "EdLevelSecondary school (e.g. American high school, German Realschule or Gymnasium, etc.)" = "Secondary School",
                          "EdLevelSome college/university study without earning a degree" = "University w/out degree",
                          "EdLevelSomething else" = "Other Education Level",
                          "GenderNon-binary" = "Non-binary",
@@ -253,23 +354,12 @@ msummary(list("Baseline" = reg1, "Company" = reg2, "Demographics" = reg3),
                          "Age45-54 years old" = "45-54",
                          "Age55-64 years old" = "55-64",
                          "Age65 years or older" = "65+",
-                         "AgeUnder 18 years old" = "18-"
+                         "AgeUnder 18 years old" = "18-",
+                         "YearsCode" = "Years Coded",
+                         "RaceColored" = "People of color"
                          ),
-         title = "Coding Language Gap in the US") %>% 
-        column_spec(1:3, width = "7em") %>% 
+         title = "Full table: Coding Language Compensation Gap in the US") %>% 
+        column_spec(1:3, width = "9em") %>% 
         kable_classic(full_width = F, position = "center" , latex_options = "hold_position")
 
 ```
-
-## Robustness check / 'Heterogeneity analysis'
-
-```{r robust}
-```
-
-## Conclusion
-
-HERE COMES WHAT WE HAVE LEARNED AND WHAT WOULD STRENGHTEN AND WEAKEN OUR ANALYSIS.
-
-## Appendix
-
-Here comes all the results which are referenced and not essential for understanding the MAIN results.
